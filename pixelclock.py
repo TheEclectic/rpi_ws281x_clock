@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 import time
-from neopixel import *
-import _rpi_ws281x as ws
+from rpi_ws281x import *
 import argparse
 
 # LED strip configuration:
@@ -62,15 +61,15 @@ def getPixel(strip, pos):
     pos = (n - 1) - ((g_offset + pos + n) % n)
     return strip.getPixelColor(pos)
 
+def sumcolor(c1, c2):
+    return Color(min((c1>>16) + (c2>>16), 0xff), min(((c1>>8) + (c2>>8))&0xff, 0xff), min((c1 + c2) & 0xff, 0xff))
 
 def sweep(strip):
-
     color_sec = scale(Red, 0.5)
     color_min = scale(Green, 1.0)
     color_hour = scale(Blue, 1.0)
 
     color_back = Black
-    #color_back = Color(1,1,1)
     color_5 = Color(5,5,5)
     color_15 = Color(20, 20, 20)
     debugging = False
@@ -99,12 +98,10 @@ def sweep(strip):
         pos_s1 = (pos_s + 1) % strip.numPixels()
 
         # compute the relative brightness of the pixels
-        # The number of ms past this second
-        millis = (int(round(startFrame * 1000)) % 1000)
-        s =  millis / 999.0
-        # s increases in value as we move towards next second
-        col_s = scale(color_sec, 1.0 - s)
-        col_s1 = scale(color_sec, s)
+        # by scaling using the fractional part of this second
+        frac = startFrame % 1
+        col_s = scale(color_sec, 1.0 - frac)
+        col_s1 = scale(color_sec, frac)
         
         # For the minute indicator.
         pos_m = now.tm_min
@@ -113,7 +110,7 @@ def sweep(strip):
         # Fades between 2 pixels as the minute progresses, we
         # calculate using number of milliseconds elapsed for a
         # smoother animation.
-        s = (now.tm_sec * 1000 + millis) / 60000.0
+        s = ((now.tm_sec + frac) * 1000) / 60000.0
 
         col_m = scale(color_min, 1.0 - s)
         col_m1 = scale(color_min, s)
@@ -129,14 +126,14 @@ def sweep(strip):
         col_h = scale(color_hour, 1.0 - s)
         col_h1 = scale(color_hour, s)
 
-        setPixel(strip, pos_s,  col_s + getPixel(strip, pos_s))
-        setPixel(strip, pos_s1,  col_s1 + getPixel(strip, pos_s1))
+        setPixel(strip, pos_s,  sumcolor(col_s, getPixel(strip, pos_s)))
+        setPixel(strip, pos_s1,  sumcolor(col_s1, getPixel(strip, pos_s1)))
 
-        setPixel(strip, pos_m, col_m + getPixel(strip, pos_m))
-        setPixel(strip, pos_m1, col_m1 + getPixel(strip, pos_m1))
+        setPixel(strip, pos_m, sumcolor(col_m, getPixel(strip, pos_m)))
+        setPixel(strip, pos_m1, sumcolor(col_m1, getPixel(strip, pos_m1)))
 
-        setPixel(strip, pos_h, col_h + getPixel(strip, pos_h))
-        setPixel(strip, pos_h1, col_h1 + getPixel(strip, pos_h1))
+        setPixel(strip, pos_h, sumcolor(col_h, getPixel(strip, pos_h)))
+        setPixel(strip, pos_h1, sumcolor(col_h1, getPixel(strip, pos_h1)))
 
 
         strip.show()
@@ -164,7 +161,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Create NeoPixel object with appropriate configuration.
-    strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, ws.WS2811_STRIP_GRB)
+    strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL, WS2811_STRIP_GRB)
     # Intialize the library (must be called once before other functions).
     strip.begin()
 
